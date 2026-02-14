@@ -28,6 +28,7 @@ from test_framework.util import (
     assert_raises_rpc_error,
     ensure_for,
     p2p_port,
+    wait_until_helper_internal,
 )
 from test_framework.wallet import (
     MiniWallet,
@@ -54,7 +55,15 @@ class ZMQSubscriber:
 
     # Receive message from publisher and verify that topic and sequence match
     def _receive_from_publisher_and_check(self):
-        topic, body, seq = self.socket.recv_multipart()
+        def try_recv():
+            try:
+                self._received = self.socket.recv_multipart(zmq.DONTWAIT)
+                return True
+            except zmq.error.Again:
+                return False
+
+        wait_until_helper_internal(try_recv, timeout=0.5)
+        topic, body, seq = self._received
         # Topic should match the subscriber topic.
         assert_equal(topic, self.topic)
         # Sequence should be incremental.
